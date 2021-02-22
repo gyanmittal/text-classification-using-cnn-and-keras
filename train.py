@@ -74,7 +74,7 @@ model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy'])
 
 print(model.summary())
 
-epochs = 1
+epochs = 20
 batch_size = 32
 verbose = 1
 validation_split = 0.1
