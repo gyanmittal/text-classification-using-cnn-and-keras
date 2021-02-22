@@ -7,7 +7,7 @@ from keras.callbacks import ModelCheckpoint
 from keras.optimizers import Adam
 from keras.models import Input, Model
 
-data_file = "data/spam-sms.csv"
+data_file = "data/SMSSpamCollection"
 # Load data
 print("Loading data...")
 x_text, y = load_data_and_labels_from_csv_file(data_file)
@@ -74,7 +74,7 @@ model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy'])
 
 print(model.summary())
 
-epochs = 20
+epochs = 1
 batch_size = 32
 verbose = 1
 validation_split = 0.1

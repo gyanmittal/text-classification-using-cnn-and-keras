@@ -36,7 +36,7 @@ vocabulary, seq_len = load_vocab_json(vocab_file)
 
 #x_text = ["Free entry in 2 a wkly comp to win FA Cup final tkts 21st May 2005. Text FA to 87121 to receive entry question(std txt rate)T&     C's apply 08452810075over18's", "I'm gonna be home soon and i don't want to talk about this stuff anymore tonight, k? I've cried enough today."]
 
-data_file = "data/spam-sms.csv"
+data_file = "data/SMSSpamCollection"
 x_text, y = load_data_and_labels_from_csv_file(data_file)
 #x_text = x_text[:5]
 #y = y[:5]

@@ -29,7 +29,7 @@ model = keras.models.load_model("model/cp.ckpt/")
 vocab_file = "model/vocab.json"
 vocabulary, seq_len = load_vocab_json(vocab_file)
 
-data_file = "data/spam-sms.csv"
+data_file = "data/SMSSpamCollection"
 x_text, y = load_data_and_labels_from_csv_file(data_file)
 x = pad_sentences(x_text, max_sequence_length=seq_len, is_max_sequence_length_modifiable=False)
 x = text_to_sequence(x, vocabulary)
