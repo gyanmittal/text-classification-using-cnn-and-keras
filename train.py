@@ -6,6 +6,8 @@ from keras.layers import Embedding, Reshape, Conv2D, MaxPool2D, Concatenate, Fla
 from keras.callbacks import ModelCheckpoint 
 from keras.optimizers import Adam
 from keras.models import Input, Model
+import requests # This library is used to make requests to internet
+import zipfile
 
 data_file = "data/SMSSpamCollection"
 
