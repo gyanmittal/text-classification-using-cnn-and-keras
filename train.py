@@ -1,6 +1,6 @@
 import numpy as np
 import os
-from util import load_data_and_labels_from_csv_file, build_vocab, pad_sentences, text_to_sequence, save_vocab_json
+from util import load_data_and_labels_from_csv_file, build_vocab, pad_sentences, text_to_sequence, save_vocab_json, generate_word_level_features
 import keras
 from keras.layers import Embedding, Reshape, Conv2D, MaxPool2D, Concatenate, Flatten, Dropout, Dense
 from keras.callbacks import ModelCheckpoint 
@@ -10,17 +10,23 @@ from keras.models import Input, Model
 data_file = "data/SMSSpamCollection"
 # Load data
 print("Loading data...")
-x_text, y = load_data_and_labels_from_csv_file(data_file)
+labels, sentences = load_data_and_labels_from_csv_file(data_file)
 
+params = {'max_words_features': 500} 
+
+lines_words_level_features = generate_word_level_features(sentences, params['max_words_features'])
+params['max_words_features'] = max([len(lines) for lines in lines_words_level_features])
+
+lines_words_level_features = np.array(lines_words_level_features)
 
 # Build vocabulary
 print("Build the vocabulary")
-vocabulary = build_vocab(x_text, max_vocab_size=10000)
+vocabulary = build_vocab(lines_words_level_features, max_vocab_size=10000)
 #print(vocabulary)
 
 # Pad sentence
 print("Padding sentences...")
-x_text = pad_sentences(x_text, max_sequence_length=100)
+x_text = pad_sentences(lines_words_level_features, max_sequence_length=params['max_words_features'])
 
 seq_len = len(x_text[0]) 
 print("The sequence length is: ", seq_len)
@@ -29,17 +35,17 @@ print("The sequence length is: ", seq_len)
 x = text_to_sequence(x_text, vocabulary)
 
 # Shuffle data
-#np.random.seed(1000) #same shuffling each time
-shuffle_indices = np.random.permutation(np.arange(len(y)))
+np.random.seed(1) #same shuffling each time
+shuffle_indices = np.random.permutation(np.arange(len(labels)))
 x = x[shuffle_indices]
-y = y[shuffle_indices]
+labels = labels[shuffle_indices]
 
 """
 ## Build CNN model
 """
-vocab_size_or_no_features = len(vocabulary) 
+vocab_size_or_total_features = len(vocabulary) 
 
-embed_dim = 300
+embed_dim = 300 
 filter_sizes = [3,4,5]
 num_filters = 512
 drop_out = 0.5
@@ -47,7 +53,7 @@ drop_out = 0.5
 # this returns a tensor
 print("Creating Model...")
 inputs = Input(shape=(seq_len,), dtype='int32')
-embedding = Embedding(input_dim=vocab_size_or_no_features, output_dim=embed_dim, input_length=seq_len)(inputs)
+embedding = Embedding(input_dim=vocab_size_or_total_features, output_dim=embed_dim, input_length=seq_len)(inputs)
 reshape = Reshape((seq_len,embed_dim,1))(embedding)
 
 conv0 = Conv2D(num_filters, kernel_size=(filter_sizes[0], embed_dim), padding='valid', kernel_initializer='normal', activation='relu')(reshape)
@@ -67,7 +73,13 @@ model = Model(inputs=inputs, outputs=output) # Create model
 checkpoint_path = "model/cp.ckpt"
 checkpoint_dir = os.path.dirname(checkpoint_path)
 
-checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='val_accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
+if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
+# Save Vocabulary
+vocab_file = checkpoint_dir + "/vocab.json"
+save_vocab_json(vocab_file, vocabulary, params)
+
+checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
+#checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='val_accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
 tensorboard_callback = keras.callbacks.TensorBoard(log_dir=checkpoint_dir, histogram_freq=0)
 adam = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy'])
@@ -77,11 +89,7 @@ print(model.summary())
 epochs = 20
 batch_size = 32
 verbose = 1
-validation_split = 0.1
+validation_split = 0
 print("Traning Model...")
+model.fit(x, labels, batch_size=batch_size, epochs=epochs, verbose=verbose, validation_split=validation_split, callbacks=[checkpoint, tensorboard_callback])
 
-model.fit(x, y, batch_size=batch_size, epochs=epochs, verbose=verbose, validation_split=validation_split, callbacks=[checkpoint, tensorboard_callback])
-
-# Save Vocabulary
-vocab_file = checkpoint_dir + "/vocab.json"
-save_vocab_json(vocab_file, vocabulary, seq_len)

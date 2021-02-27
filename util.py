@@ -4,6 +4,7 @@ import itertools
 from collections import Counter
 import json
 import math
+import random
 
 def process_text(text):
     text = text.strip().lower()
@@ -20,17 +21,16 @@ def process_text(text):
     return text
 
 def load_data_and_labels_from_csv_file(csv_file):
-    examples = list(open(csv_file, 'r', encoding='utf-8').readlines())
-    examples = [s.strip() for s in examples]
-    x_text = [sen.split("\t") for sen in examples]
+    lines = list(open(csv_file, 'r', encoding='utf-8').readlines())
+    lines = [s.strip() for s in lines]
+    labels, sentences = zip(*[line.split("\t") for line in lines])
+    labels = np.array([1 if label=='spam' else 0 for label in labels ])
+    return labels, np.array(sentences)
 
-    labels = []
-    data = []
-    for text in x_text:
-        current_line_data = process_text(text[1])
-        labels.append([0]) if text[0] == 'ham' else labels.append([1])
-        data.append(current_line_data.split())
-    return data, np.array(labels)
+def generate_word_level_features(sentences, max_words_features=100):
+    lines_words_level_features = [process_text(sentence).split() for sentence in sentences]
+    lines_truncated_words_level_features = [line_features if(len(line_features) <= max_words_features) else line_features[:max_words_features] for line_features in lines_words_level_features]
+    return lines_truncated_words_level_features
 
 def pad_sentences(sentences, padding_word='<PAD/>', max_sequence_length=200, is_max_sequence_length_modifiable=True):
    
@@ -48,7 +48,7 @@ def pad_sentences(sentences, padding_word='<PAD/>', max_sequence_length=200, is_
     return padded_sentences
 
 
-def build_vocab(sentences, max_vocab_size=20000, min_word_freq=2, padding_word='<PAD/>', unknown_word='<UNK/>'):
+def build_vocab(sentences, max_vocab_size=20000, min_word_freq=1, padding_word='<PAD/>', unknown_word='<UNK/>'):
     word_counts = Counter(itertools.chain(*sentences)) # Count words
     vocabulay_inv = [[unknown_word, math.inf], [padding_word,math.inf]] + [[x[0], x[1]] for x in word_counts.most_common()] # Sort the word as frequency order
     if(len(vocabulay_inv) > (max_vocab_size+2)):
@@ -60,12 +60,38 @@ def text_to_sequence(sentences, vocabulary, unknown_word='<UNK/>'):
     x = np.array([[vocabulary[word][0] if word in vocabulary else vocabulary[unknown_word][0] for word in sen] for sen in sentences])
     return x
 
-def save_vocab_json(file_path, word2id, seq_len):
-    json.dump(dict(src_word2id=word2id, seq_len={"seq_len":seq_len}), open(file_path, 'w'), indent=2)
-    #json.dump(dict(seq_len={"seq_len":seq_len}), open(file_path, 'w'), indent=2)
+def save_vocab_json(file_path, word2id, params):
+    json.dump(dict(src_word2id=word2id, params=params), open(file_path, 'w'), indent=2)
 
 def load_vocab_json(file_path):
     entry = json.load(open(file_path, 'r'))
     src_word2id = entry['src_word2id']
-    seq_len = entry['seq_len']
-    return src_word2id, seq_len['seq_len']
+    params = entry['params']
+    return src_word2id, params
+
+def precision_recall_f1_score(y_true, y_pred):
+    y_pred = [1 if prediction >= .5 else 0 for prediction in y_pred]
+    total_elem = len(y_true)
+    true_positive = 0
+    false_positive = 0
+    total_true_positives = 0
+    count = 0
+    for y_true_elem in (y_pred):
+        if (y_pred[count] == 1):
+            if (y_true[count] == 1):
+                true_positive += 1
+            else:
+                false_positive += 1
+        total_true_positives += y_true[count]
+        count += 1
+
+    precision = 0
+    recall = 0
+    f1_score = 0
+    if(true_positive+false_positive > 0):
+        precision = true_positive/(true_positive+false_positive) * 100
+    if (total_true_positives > 0):
+        recall = true_positive * 100/ total_true_positives
+    if (precision > 0 or recall > 0):
+        f1_score = 2 * precision * recall / (precision + recall)
+    return precision, recall, f1_score

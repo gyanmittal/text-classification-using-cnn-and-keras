@@ -1,63 +1,54 @@
+import numpy as np
 import keras
-from util import load_vocab_json, load_vocab_json, load_data_and_labels_from_csv_file, pad_sentences, text_to_sequence
+from util import load_vocab_json, load_vocab_json, load_data_and_labels_from_csv_file, pad_sentences, text_to_sequence, generate_word_level_features, precision_recall_f1_score
 from keras import backend as K
 import tensorflow as tf
-
-def f1_score(y_true, y_pred):
-
-    # Count positive samples.
-    c1 = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    c2 = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    c3 = K.sum(K.round(K.clip(y_true, 0, 1)))
-
-    # If there are no true samples, fix the F1 score at 0.
-    if c3 == 0:
-        return 0
-
-    # How many selected items are relevant?
-    precision = tf.cast(c1, tf.float64) / tf.cast(c2, tf.float64)
-    # How many relevant items are selected?
-    recall = tf.cast(c1, tf.float64) / tf.cast(c3, tf.float64)
-    # Calculate f1_score
-    f1_score = 2 * (precision * recall) / (precision + recall)
-    return precision.numpy(), recall.numpy(), f1_score.numpy()
 
 #load model
 model = keras.models.load_model("model/cp.ckpt/")
 #print(model.summary())
 
 vocab_file = "model/vocab.json"
-vocabulary, seq_len = load_vocab_json(vocab_file)
+vocabulary, params = load_vocab_json(vocab_file)
+seq_len = params['max_words_features'] 
 
 data_file = "data/SMSSpamCollection"
-x_text, y = load_data_and_labels_from_csv_file(data_file)
-x = pad_sentences(x_text, max_sequence_length=seq_len, is_max_sequence_length_modifiable=False)
+labels, sentences = load_data_and_labels_from_csv_file(data_file)
+
+lines_words_level_features = generate_word_level_features(sentences, params['max_words_features'])
+lines_words_level_features = np.array(lines_words_level_features)
+
+x = pad_sentences(lines_words_level_features, max_sequence_length=seq_len, is_max_sequence_length_modifiable=False)
 x = text_to_sequence(x, vocabulary)
-'''
-x = x[:10]
-y = y[:10]
-x_text = x_text[:10]
-'''
 
 print("Generate predictions")
 predictions = model.predict(x)
-#print(predictions)
-print("Ham caught as Spam\n\n")
+
+print("Ham caught as Spam:")
 count = 0
-for text in x_text:
-    if (predictions[count] >= 0.5 and y[count] == 0):
-        print((count+1), "\t\t", text, "\t\t", predictions[count])
+count_ham_as_spam = 0
+for sentence in sentences:
+    if (predictions[count] >= 0.5 and labels[count] == 0):
+        print((count+1), "\t\t", sentence, "\t\t", predictions[count])
+        count_ham_as_spam += 1
     count += 1 
-print("Spam classified as Ham\n\n")
+
+if(count_ham_as_spam == 0): 
+    print("None\n")
+
+print("Spam classified as Ham:")
 count = 0
-
-for text in x_text:
-    if (predictions[count] < 0.5 and y[count] == 1):
-        print((count+1), "\t\t", text, "\t\t", predictions[count])
+count_spam_classified_as_ham = 0
+for sentence in sentences:
+    if (predictions[count] < 0.5 and labels[count] == 1):
+        print((count+1), "\t\t", sentence, "\t\t", predictions[count])
+        count_spam_classified_as_ham += 1
     count += 1
+if(count_spam_classified_as_ham == 0): 
+    print("None\n")
 
-precision, recall, f1_score = f1_score(y, predictions)
+precision, recall, f1_score = precision_recall_f1_score(labels, predictions)
+print("precision:\t", precision)
+print("recall:\t", recall)
+print("f1_score:\t", f1_score)
 
-print("precision:\t", precision * 100)
-print("recall:\t", recall * 100)
-print("f1_score:\t",f1_score * 100)
