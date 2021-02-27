@@ -8,6 +8,24 @@ from keras.optimizers import Adam
 from keras.models import Input, Model
 
 data_file = "data/SMSSpamCollection"
+
+#Download and unzip the data file in data directory in case it doesn't exists already
+if not os.path.exists(data_file):
+    data_file_dir = os.path.dirname(data_file)
+    if not os.path.exists(data_file_dir): os.makedirs(data_file_dir)
+
+    # We are storing url of dataset
+    url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00228/smsspamcollection.zip'
+    r = requests.get(url, allow_redirects=True)
+    zip_file_download = data_file_dir + '/smsspamcollection.zip'
+
+    # We are writing the content of above request to 'iris.data' file
+    open(zip_file_download, 'wb').write(r.content)
+    
+    #Extract the zip file
+    with zipfile.ZipFile(zip_file_download,"r") as zip_ref:
+        zip_ref.extractall(data_file_dir)
+
 # Load data
 print("Loading data...")
 labels, sentences = load_data_and_labels_from_csv_file(data_file)
