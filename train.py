@@ -66,7 +66,7 @@ labels = labels[shuffle_indices]
 vocab_size_or_total_features = len(vocabulary) 
 
 embed_dim = 300 
-filter_sizes = [3,4,5]
+filter_sizes = [1,2,3,4,5]
 num_filters = 512
 drop_out = 0.5
 
@@ -76,14 +76,15 @@ inputs = Input(shape=(seq_len,), dtype='int32')
 embedding = Embedding(input_dim=vocab_size_or_total_features, output_dim=embed_dim, input_length=seq_len)(inputs)
 reshape = Reshape((seq_len,embed_dim,1))(embedding)
 
-conv0 = Conv2D(num_filters, kernel_size=(filter_sizes[0], embed_dim), padding='valid', kernel_initializer='normal', activation='relu')(reshape)
-maxpool0 = MaxPool2D(pool_size=(seq_len - filter_sizes[0] + 1, 1), strides=(1,1), padding='valid')(conv0)
-conv1 = Conv2D(num_filters, kernel_size=(filter_sizes[1], embed_dim), padding='valid', kernel_initializer='normal', activation='relu')(reshape)
-maxpool1 = MaxPool2D(pool_size=(seq_len - filter_sizes[1] + 1, 1), strides=(1,1), padding='valid')(conv1)
-conv2 = Conv2D(num_filters, kernel_size=(filter_sizes[2], embed_dim), padding='valid', kernel_initializer='normal', activation='relu')(reshape)
-maxpool2 = MaxPool2D(pool_size=(seq_len - filter_sizes[2] + 1, 1), strides=(1,1), padding='valid')(conv2)
+# Defining Conv and Maxpool Layer for each filter_size
+maxpool_for_each_filter = []
+for filter_size in filter_sizes:
+    conv = Conv2D(num_filters, kernel_size=(filter_size, embed_dim), padding='valid', kernel_initializer='normal', activation='relu')(reshape)
+    maxpool = MaxPool2D(pool_size=(seq_len - filter_size + 1, 1), strides=(1,1), padding='valid')(conv)
+    maxpool_for_each_filter.append(maxpool)
 
-concatenate_maxpool = Concatenate(axis=1)([maxpool0, maxpool1, maxpool2])
+# Concat all max pool layers
+concatenate_maxpool = Concatenate(axis=1)(maxpool_for_each_filter)
 flatten = Flatten()(concatenate_maxpool)
 dropout = Dropout(drop_out)(flatten)
 output = Dense(units=1, activation='sigmoid')(dropout)
@@ -98,8 +99,8 @@ if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
 vocab_file = checkpoint_dir + "/vocab.json"
 save_vocab_json(vocab_file, vocabulary, params)
 
-checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
-#checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='val_accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
+#checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
+checkpoint = ModelCheckpoint(filepath=checkpoint_path,  monitor='val_accuracy', verbose=1, save_best_only=True, mode='auto') # Create callback to save the weights
 tensorboard_callback = keras.callbacks.TensorBoard(log_dir=checkpoint_dir, histogram_freq=0)
 adam = Adam(lr=1e-4, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 model.compile(optimizer=adam, loss='binary_crossentropy', metrics=['accuracy'])
@@ -109,7 +110,7 @@ print(model.summary())
 epochs = 20
 batch_size = 32
 verbose = 1
-validation_split = 0
+validation_split = 0.2
 print("Traning Model...")
 model.fit(x, labels, batch_size=batch_size, epochs=epochs, verbose=verbose, validation_split=validation_split, callbacks=[checkpoint, tensorboard_callback])
 
